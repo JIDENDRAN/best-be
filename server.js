@@ -309,10 +309,10 @@ app.put('/api/admin/settings', async (req, res) => {
   try {
     const { name, phone, whatsapp, password } = req.body;
     await db.run(
-      'UPDATE admin_settings SET name = ?, phone = ?, whatsapp = ?, password = ? WHERE id = 1',
+      'UPDATE admin_settings SET name = ?, phone = ?, whatsapp = ?, password = ? WHERE id = (SELECT MIN(id) FROM admin_settings)',
       [name, phone, whatsapp, password]
     );
-    const updated = await db.get('SELECT * FROM admin_settings WHERE id = 1');
+    const updated = await db.get('SELECT * FROM admin_settings WHERE id = (SELECT MIN(id) FROM admin_settings)');
     res.status(200).json({ message: 'Admin profile updated successfully', admin: updated });
   } catch (error) {
     console.error('Error updating admin profile:', error);
