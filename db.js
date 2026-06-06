@@ -86,7 +86,7 @@ export async function initDatabase() {
 
   // Seed default admin settings
   await db.run("UPDATE admin_settings SET name = 'admin' WHERE name = 'Superadmin'");
-  await db.run("UPDATE admin_settings SET phone = '6382513075', whatsapp = '6382513075' WHERE id = 1");
+  await db.run("UPDATE admin_settings SET phone = '6382513075', whatsapp = '6382513075' WHERE id = (SELECT MIN(id) FROM admin_settings)");
   const adminCount = await db.get('SELECT COUNT(*) as count FROM admin_settings');
   if (adminCount.count === 0) {
     await db.run(
