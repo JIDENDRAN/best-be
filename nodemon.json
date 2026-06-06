@@ -1,0 +1,14 @@
+{
+  "watch": ["server.js", "routes", "controllers", "models"],
+  "ext": "js,json",
+  "ignore": [
+    "node_modules",
+    "baileys_auth",
+    "whatsapp_auth",
+    "uploads",
+    "logs",
+    "*.db",
+    "*.sqlite",
+    "*.sqlite3"
+  ]
+}
