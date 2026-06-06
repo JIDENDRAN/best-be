@@ -110,7 +110,8 @@ export async function connectToWhatsApp(db) {
     sock = makeWASocket({
       auth: state,
       printQRInTerminal: false, // We will print it custom with qrcode-terminal
-      logger: pino({ level: 'silent' })
+      logger: pino({ level: 'silent' }),
+      browser: ['MaduraiBest', 'Chrome', '1.0.0']
     });
 
     sock.ev.on('connection.update', async (update) => {
@@ -125,7 +126,7 @@ export async function connectToWhatsApp(db) {
         
         // Also save QR to database so frontend can display it in the Admin Dashboard!
         await database.run(
-          "UPDATE admin_settings SET qr_code = ? WHERE id = 1",
+          "UPDATE admin_settings SET qr_code = ?",
           [qr]
         ).catch((err) => {
           console.error('Failed to save QR code in settings:', err);
@@ -139,7 +140,7 @@ export async function connectToWhatsApp(db) {
         console.log(`WhatsApp connection closed (status code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
         
         // Remove qr_code from DB if connection closed or logged out
-        await database.run("UPDATE admin_settings SET qr_code = NULL WHERE id = 1").catch(() => {});
+        await database.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
 
         if (shouldReconnect) {
           reconnectTimeout = setTimeout(() => connectToWhatsApp(), 5000);
@@ -150,7 +151,7 @@ export async function connectToWhatsApp(db) {
         console.log('====================================================');
         isConnected = true;
         // Remove QR code from DB once connected
-        await database.run("UPDATE admin_settings SET qr_code = NULL WHERE id = 1").catch(() => {});
+        await database.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
       }
     });
 
