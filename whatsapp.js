@@ -142,6 +142,13 @@ export async function connectToWhatsApp(db) {
         // Remove qr_code from DB if connection closed or logged out
         await database.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
 
+        if (statusCode === DisconnectReason.loggedOut) {
+          console.log("Logged out from WhatsApp. Clearing auth credentials in DB.");
+          await database.run("DELETE FROM whatsapp_auth_state").catch((err) => {
+            console.error("Failed to clear auth state:", err);
+          });
+        }
+
         if (shouldReconnect) {
           reconnectTimeout = setTimeout(() => connectToWhatsApp(), 5000);
         }

@@ -1,26 +1,75 @@
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pg from 'pg';
+const { Pool } = pg;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 
-const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'database.db');
+const isLocalhost = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+
+const pool = new Pool({
+  connectionString,
+  ssl: isLocalhost ? false : { rejectUnauthorized: false }
+});
+
+// Test connection
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle PostgreSQL client', err);
+});
+
+function convertQuery(sql, params = []) {
+  let index = 1;
+  const formattedSql = sql.replace(/\?/g, () => `$${index++}`);
+  return {
+    formattedSql,
+    pgParams: params
+  };
+}
+
+export const db = {
+  query: (text, params) => pool.query(text, params),
+  
+  get: async (text, params) => {
+    const { formattedSql, pgParams } = convertQuery(text, params);
+    const res = await pool.query(formattedSql, pgParams);
+    return res.rows[0] || null;
+  },
+  
+  all: async (text, params) => {
+    const { formattedSql, pgParams } = convertQuery(text, params);
+    const res = await pool.query(formattedSql, pgParams);
+    return res.rows;
+  },
+  
+  run: async (text, params) => {
+    const { formattedSql, pgParams } = convertQuery(text, params);
+    let sqlToRun = formattedSql;
+    let isInsert = sqlToRun.trim().toUpperCase().startsWith('INSERT');
+    if (isInsert && !sqlToRun.toUpperCase().includes('RETURNING')) {
+      sqlToRun += ' RETURNING id';
+    }
+    const res = await pool.query(sqlToRun, pgParams);
+    let lastID = null;
+    if (isInsert && res.rows[0]) {
+      lastID = res.rows[0].id || null;
+    }
+    return {
+      lastID,
+      changes: res.rowCount
+    };
+  },
+  
+  exec: async (text) => {
+    return pool.query(text);
+  }
+};
 
 export async function initDatabase() {
-  const db = await open({
-    filename: dbPath,
-    driver: sqlite3.Database
-  });
+  // Verify the connection works
+  await pool.query('SELECT NOW()');
 
-  // Enable foreign keys
-  await db.run('PRAGMA foreign_keys = ON');
-
-  // Create tables
-  await db.exec(`
+  // Create tables using Postgres-compliant statements
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS admin_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       phone TEXT NOT NULL,
       whatsapp TEXT NOT NULL,
@@ -34,32 +83,32 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       phone TEXT NOT NULL,
-      fromLocation TEXT NOT NULL,
-      toLocation TEXT NOT NULL,
+      "fromLocation" TEXT NOT NULL,
+      "toLocation" TEXT NOT NULL,
       date TEXT NOT NULL,
       time TEXT,
       vehicle TEXT,
-      packageType TEXT,
+      "packageType" TEXT,
       status TEXT DEFAULT 'Pending',
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS cars (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       seats TEXT NOT NULL,
       ac TEXT NOT NULL,
       price TEXT NOT NULL,
-      desc TEXT NOT NULL,
+      "desc" TEXT NOT NULL,
       image TEXT NOT NULL,
-      bgImage TEXT NOT NULL
+      "bgImage" TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS packages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       duration TEXT NOT NULL,
       places TEXT NOT NULL,
@@ -68,37 +117,31 @@ export async function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS contacts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
       phone TEXT NOT NULL,
       message TEXT NOT NULL,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
-  // Migration for older databases
-  try {
-    await db.run('ALTER TABLE admin_settings ADD COLUMN qr_code TEXT');
-  } catch (err) {
-    // Column already exists
-  }
-
   // Seed default admin settings
-  await db.run("UPDATE admin_settings SET name = 'admin' WHERE name = 'Superadmin'");
-  await db.run("UPDATE admin_settings SET phone = '6382513075', whatsapp = '6382513075' WHERE id = (SELECT MIN(id) FROM admin_settings)");
-  const adminCount = await db.get('SELECT COUNT(*) as count FROM admin_settings');
-  if (adminCount.count === 0) {
-    await db.run(
-      'INSERT INTO admin_settings (name, phone, whatsapp, password) VALUES (?, ?, ?, ?)',
+  await pool.query("UPDATE admin_settings SET name = 'admin' WHERE name = 'Superadmin'");
+  await pool.query("UPDATE admin_settings SET phone = '6382513075', whatsapp = '6382513075' WHERE id = (SELECT MIN(id) FROM admin_settings)");
+  
+  const adminCountRes = await pool.query('SELECT COUNT(*) as count FROM admin_settings');
+  const adminCount = parseInt(adminCountRes.rows[0].count, 10);
+  if (adminCount === 0) {
+    await pool.query(
+      'INSERT INTO admin_settings (name, phone, whatsapp, password) VALUES ($1, $2, $3, $4)',
       ['admin', '6382513075', '6382513075', 'admin123']
     );
     console.log('Seeded default admin settings.');
   }
 
   // Seed default premium cars matching exact assets
-  // We clear the cars table to ensure the database always synchronizes with these exact 6 vehicles and rates.
-  await db.run('DELETE FROM cars');
+  await pool.query('DELETE FROM cars');
   const defaultCars = [
     {
       name: 'Innova Crysta',
@@ -157,16 +200,17 @@ export async function initDatabase() {
   ];
 
   for (const car of defaultCars) {
-    await db.run(
-      'INSERT INTO cars (name, seats, ac, price, desc, image, bgImage) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    await pool.query(
+      'INSERT INTO cars (name, seats, ac, price, "desc", image, "bgImage") VALUES ($1, $2, $3, $4, $5, $6, $7)',
       [car.name, car.seats, car.ac, car.price, car.desc, car.image, car.bgImage]
     );
   }
   console.log('Seeded default vehicles.');
 
   // Seed default tour packages
-  const packagesCount = await db.get('SELECT COUNT(*) as count FROM packages');
-  if (packagesCount.count === 0) {
+  const packagesCountRes = await pool.query('SELECT COUNT(*) as count FROM packages');
+  const packagesCount = parseInt(packagesCountRes.rows[0].count, 10);
+  if (packagesCount === 0) {
     const defaultPackages = [
       {
         name: 'Madurai Local Tour',
@@ -199,8 +243,8 @@ export async function initDatabase() {
     ];
 
     for (const pkg of defaultPackages) {
-      await db.run(
-        'INSERT INTO packages (name, duration, places, price, image) VALUES (?, ?, ?, ?, ?)',
+      await pool.query(
+        'INSERT INTO packages (name, duration, places, price, image) VALUES ($1, $2, $3, $4, $5)',
         [pkg.name, pkg.duration, pkg.places, pkg.price, pkg.image]
       );
     }

@@ -85,7 +85,7 @@ app.post('/api/bookings', async (req, res) => {
     const { fromLocation, toLocation, date, time, name, phone, vehicle, packageType } = req.body;
     
     const result = await db.run(
-      'INSERT INTO bookings (fromLocation, toLocation, date, time, name, phone, vehicle, packageType, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO bookings ("fromLocation", "toLocation", date, time, name, phone, vehicle, "packageType", status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [fromLocation, toLocation, date, time, name, phone, vehicle || 'Not Selected', packageType || 'Custom Trip', 'Pending']
     );
     
@@ -149,7 +149,7 @@ app.post('/api/cars', async (req, res) => {
   try {
     const { name, seats, ac, price, desc, image, bgImage } = req.body;
     const result = await db.run(
-      'INSERT INTO cars (name, seats, ac, price, desc, image, bgImage) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO cars (name, seats, ac, price, "desc", image, "bgImage") VALUES (?, ?, ?, ?, ?, ?, ?)',
       [name, seats, ac, price, desc, image || 'toyota_etios-removebg-preview.png', bgImage || 'kanyakumari_bg.png']
     );
     const newCar = await db.get('SELECT * FROM cars WHERE id = ?', [result.lastID]);
@@ -164,7 +164,7 @@ app.put('/api/cars/:id', async (req, res) => {
   try {
     const { name, seats, ac, price, desc, image, bgImage } = req.body;
     await db.run(
-      'UPDATE cars SET name = ?, seats = ?, ac = ?, price = ?, desc = ?, image = ?, bgImage = ? WHERE id = ?',
+      'UPDATE cars SET name = ?, seats = ?, ac = ?, price = ?, "desc" = ?, image = ?, "bgImage" = ? WHERE id = ?',
       [name, seats, ac, price, desc, image, bgImage, req.params.id]
     );
     const updated = await db.get('SELECT * FROM cars WHERE id = ?', [req.params.id]);
@@ -350,6 +350,10 @@ app.get('/api/admin/whatsapp-status', async (req, res) => {
 
 app.post('/api/admin/whatsapp-reconnect', async (req, res) => {
   try {
+    // Clear existing auth credentials and QR code to force a clean reconnect session
+    await db.run("DELETE FROM whatsapp_auth_state").catch(() => {});
+    await db.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
+
     connectToWhatsApp(db);
     res.status(200).json({ message: 'Reconnection sequence triggered' });
   } catch (error) {
