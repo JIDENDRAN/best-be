@@ -111,7 +111,7 @@ export async function connectToWhatsApp(db) {
       auth: state,
       printQRInTerminal: false, // We will print it custom with qrcode-terminal
       logger: pino({ level: 'silent' }),
-      browser: Browsers.macOS('Desktop')
+      browser: ['Ubuntu', 'Chrome', '20.0.04']
     });
 
     sock.ev.on('creds.update', saveCreds);
