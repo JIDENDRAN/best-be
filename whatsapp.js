@@ -9,6 +9,23 @@ let isConnected = false;
 let database = null;
 let reconnectTimeout = null;
 
+const writeQueue = [];
+let isWriting = false;
+
+const processQueue = async () => {
+  if (isWriting) return;
+  isWriting = true;
+  while (writeQueue.length > 0) {
+    const task = writeQueue.shift();
+    try {
+      await task();
+    } catch (err) {
+      console.error('Queue write error:', err);
+    }
+  }
+  isWriting = false;
+};
+
 export async function useSQLiteAuthState(db) {
   const writeData = async (data, id) => {
     const value = JSON.stringify(data, BufferJSON.replacer);
@@ -74,21 +91,20 @@ export async function useSQLiteAuthState(db) {
           return data;
         },
         set: async (data) => {
-          try {
-            for (const category in data) {
-              for (const id in data[category]) {
-                const value = data[category][id];
-                const key = `${category}-${id}`;
+          for (const category in data) {
+            for (const id in data[category]) {
+              const value = data[category][id];
+              const key = `${category}-${id}`;
+              writeQueue.push(async () => {
                 if (value) {
                   await writeData(value, key);
                 } else {
                   await removeData(key);
                 }
-              }
+              });
             }
-          } catch (err) {
-            console.error('Database write error during set:', err);
           }
+          processQueue(); // run in background
         }
       }
     },
