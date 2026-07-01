@@ -74,15 +74,21 @@ export async function useSQLiteAuthState(db) {
           return data;
         },
         set: async (data) => {
-          const tasks = [];
-          for (const category in data) {
-            for (const id in data[category]) {
-              const value = data[category][id];
-              const key = `${category}-${id}`;
-              tasks.push(value ? writeData(value, key) : removeData(key));
+          try {
+            for (const category in data) {
+              for (const id in data[category]) {
+                const value = data[category][id];
+                const key = `${category}-${id}`;
+                if (value) {
+                  await writeData(value, key);
+                } else {
+                  await removeData(key);
+                }
+              }
             }
+          } catch (err) {
+            console.error('Database write error during set:', err);
           }
-          await Promise.all(tasks);
         }
       }
     },
@@ -126,7 +132,8 @@ export async function connectToWhatsApp(db) {
     sock = makeWASocket({
       auth: state,
       printQRInTerminal: false, // We will print it custom with qrcode-terminal
-      logger: pino({ level: 'silent' })
+      logger: pino({ level: 'silent' }),
+      browser: Browsers.macOS('Desktop')
     });
 
     sock.ev.on('creds.update', saveCreds);
