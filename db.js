@@ -141,71 +141,74 @@ export async function initDatabase() {
   }
 
   // Seed default premium cars matching exact assets
-  await pool.query('DELETE FROM cars');
-  const defaultCars = [
-    {
-      name: 'Innova Crysta',
-      seats: '7 Seater',
-      ac: 'AC',
-      price: '₹22/km',
-      desc: '[Outstation Plan]\nRate: ₹22/km\nMin Distance: Above 300 km\nDriver Charge: ₹500/day\n\n[Day Rental Plan]\nBase Rent: ₹2700/day\nPer km Charge: ₹17/km',
-      image: 'innova_crysta-removebg-preview.png',
-      bgImage: 'kodaikanal_bg.png'
-    },
-    {
-      name: 'Swift Dzire',
-      seats: '4 Seater',
-      ac: 'AC',
-      price: '₹14/km',
-      desc: '[Outstation Plan]\nRate: ₹14/km\nMin Distance: Above 250 km\nDriver Charge: ₹300/day\n\n[Day Rental Plan]\nBase Rent: ₹1600\nPer km Charge: ₹11/km\nDriver Charge: ₹300',
-      image: 'sedan_cab-removebg-preview.png',
-      bgImage: 'kanyakumari_bg.png'
-    },
-    {
-      name: 'Maruti Ciaz Premium Sedan',
-      seats: '4 Seater',
-      ac: 'AC',
-      price: '₹15/km',
-      desc: '[Outstation Plan]\nRate: ₹15/km\nMin Distance: Above 250 km\nDriver Charge: ₹300/day\n\n[Day Rental Plan]\nBase Rent: ₹1700/day\nPer km Charge: ₹11/km',
-      image: 'sedan_cab-removebg-preview.png',
-      bgImage: 'munnar_bg.png'
-    },
-    {
-      name: 'Prime SUV',
-      seats: '7 Seater',
-      ac: 'AC',
-      price: '₹19/km',
-      desc: '[Outstation Plan]\nRate: ₹19/km\nMin Distance: Above 300 km\nDriver Charge: ₹400/day\n\n[Day Rental Plan]\nBase Rent: ₹2300/day\nPer km Charge: ₹13/km\nDriver Charge: ₹400/day',
-      image: 'suv-removebg-preview.png',
-      bgImage: 'thirumalai_mahal_bg.png'
-    },
-    {
-      name: 'Tempo Traveller (12 Seater)',
-      seats: '12 Seater',
-      ac: 'AC',
-      price: '₹25/km',
-      desc: '[Outstation Plan]\nRate: ₹25/km\nMin Distance: Above 350 km\n\n[Day Rental Plan]\nBase Rent: ₹2800/day\nPer km Charge: ₹18/km',
-      image: 'tempo_traveller-removebg-preview.png',
-      bgImage: 'rameswaram_bg.png'
-    },
-    {
-      name: 'Tempo Traveller (18 Seater)',
-      seats: '18 Seater',
-      ac: 'AC',
-      price: '₹30/km',
-      desc: '[Outstation Plan]\nRate: ₹30/km\nMin Distance: Above 300 km\n\n[Day Rental Plan]\nBase Rent: ₹3900/day\nPer km Charge: ₹22/km',
-      image: 'tempo_traveller-removebg-preview.png',
-      bgImage: 'ooty_bg.png'
-    }
-  ];
+  const carsCountRes = await pool.query('SELECT COUNT(*) as count FROM cars');
+  const carsCount = parseInt(carsCountRes.rows[0].count, 10);
+  if (carsCount === 0) {
+    const defaultCars = [
+      {
+        name: 'Innova Crysta',
+        seats: '7 Seats',
+        ac: 'AC',
+        price: '₹22/km',
+        desc: '[Outstation Plan]\nRate: ₹22/km\nMin Distance: Above 300 kms\nDriver Charge: Rs. 400 / day\n\n[Day Rental Plan]\nBase Rent: Rs. 2700\nPer km Charge: Rs. 17/km\nDriver Charge: Rs. 400 / day',
+        image: 'car 1.jpeg',
+        bgImage: 'kodaikanal_bg.png'
+      },
+      {
+        name: 'Toyota Innova',
+        seats: '7 Seats',
+        ac: 'AC',
+        price: '₹19/km',
+        desc: '[Outstation Plan]\nRate: ₹19/km\nMin Distance: Above 300 kms\nDriver Charge: Rs. 300 / day\n\n[Day Rental Plan]\nBase Rent: Rs. 2300\nPer km Charge: Rs. 13/km\nDriver Charge: Rs. 300 / day',
+        image: 'car 2.jpeg',
+        bgImage: 'thirumalai_mahal_bg.png'
+      },
+      {
+        name: 'Swift Dzire',
+        seats: '4 Seats',
+        ac: 'AC',
+        price: '₹14/km',
+        desc: '[Outstation Plan]\nRate: ₹14/km\nMin Distance: Above 250 kms\nDriver Charge: Rs. 300 / day\n\n[Day Rental Plan]\nBase Rent: Rs. 1600\nPer km Charge: Rs. 11/km\nDriver Charge: Rs. 300 / day',
+        image: 'car 3.png',
+        bgImage: 'kanyakumari_bg.png'
+      },
+      {
+        name: 'Tempo Traveller (12 Seater)',
+        seats: '12 Seats',
+        ac: 'AC',
+        price: '₹25/km',
+        desc: '[Outstation Plan]\nRate: ₹25/km\nMin Distance: Above 350 kms\nDriver Charge: Rs. 300 / day\n\n[Day Rental Plan]\nBase Rent: Rs. 2800\nPer km Charge: Rs. 18/km\nDriver Charge: Rs. 300 / day',
+        image: 'car 4.jpg',
+        bgImage: 'rameswaram_bg.png'
+      },
+      {
+        name: 'Tempo Traveller (18 Seater)',
+        seats: '18 Seats',
+        ac: 'AC',
+        price: '₹30/km',
+        desc: '[Outstation Plan]\nRate: ₹30/km\nMin Distance: Above 300 kms\nDriver Charge: Rs. 300 / day\n\n[Day Rental Plan]\nBase Rent: Rs. 3900\nPer km Charge: Rs. 22/km\nDriver Charge: Rs. 300 / day',
+        image: 'car 5.jpeg',
+        bgImage: 'ooty_bg.png'
+      },
+      {
+        name: 'Urbania',
+        seats: '12+1 / 14+1 Seats',
+        ac: 'AC',
+        price: '₹27/km',
+        desc: '[Outstation Plan]\nRate: ₹27/km\nMin Distance: Above 250 kms\nDriver Charge: Rs. 300 / day\n\n[Day Rental Plan]\nBase Rent: Rs. 7500\nPer km Charge: Rs. 27/km\nDriver Charge: Rs. 300 / day',
+        image: 'car 6.jpeg',
+        bgImage: 'munnar_bg.png'
+      }
+    ];
 
-  for (const car of defaultCars) {
-    await pool.query(
-      'INSERT INTO cars (name, seats, ac, price, "desc", image, "bgImage") VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [car.name, car.seats, car.ac, car.price, car.desc, car.image, car.bgImage]
-    );
+    for (const car of defaultCars) {
+      await pool.query(
+        'INSERT INTO cars (name, seats, ac, price, "desc", image, "bgImage") VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [car.name, car.seats, car.ac, car.price, car.desc, car.image, car.bgImage]
+      );
+    }
+    console.log('Seeded default vehicles.');
   }
-  console.log('Seeded default vehicles.');
 
   // Seed default tour packages
   const packagesCountRes = await pool.query('SELECT COUNT(*) as count FROM packages');
