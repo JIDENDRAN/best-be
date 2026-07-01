@@ -138,14 +138,16 @@ export async function connectToWhatsApp(db) {
       if (connection === 'close') {
         isConnected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const shouldReconnect = true; // Always attempt to reconnect or keep session alive
+        let shouldReconnect = true; // Attempt to reconnect or keep session alive
         console.log(`WhatsApp connection closed (status code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
         
         // Remove qr_code from DB if connection closed or logged out
         await database.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
 
         if (statusCode === DisconnectReason.loggedOut) {
-          console.log("Logged out from WhatsApp. Keeping auth credentials in DB as requested by admin.");
+          console.log("Logged out from WhatsApp. Session revoked. Clearing credentials...");
+          await database.run("DELETE FROM whatsapp_auth_state").catch(() => {});
+          shouldReconnect = true; // MUST reconnect to generate a NEW QR code
         }
 
         if (shouldReconnect) {
