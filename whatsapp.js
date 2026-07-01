@@ -56,17 +56,15 @@ export async function useSQLiteAuthState(db) {
           return data;
         },
         set: async (data) => {
+          const tasks = [];
           for (const category in data) {
             for (const id in data[category]) {
               const value = data[category][id];
               const key = `${category}-${id}`;
-              if (value) {
-                await writeData(value, key);
-              } else {
-                await removeData(key);
-              }
+              tasks.push(value ? writeData(value, key) : removeData(key));
             }
           }
+          await Promise.all(tasks);
         }
       }
     },
@@ -110,8 +108,7 @@ export async function connectToWhatsApp(db) {
     sock = makeWASocket({
       auth: state,
       printQRInTerminal: false, // We will print it custom with qrcode-terminal
-      logger: pino({ level: 'silent' }),
-      browser: ['Ubuntu', 'Chrome', '20.0.04']
+      logger: pino({ level: 'silent' })
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -138,17 +135,11 @@ export async function connectToWhatsApp(db) {
       if (connection === 'close') {
         isConnected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        let shouldReconnect = true; // Attempt to reconnect or keep session alive
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         console.log(`WhatsApp connection closed (status code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
         
         // Remove qr_code from DB if connection closed or logged out
         await database.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
-
-        if (statusCode === DisconnectReason.loggedOut) {
-          console.log("Logged out from WhatsApp. Session revoked. Clearing credentials...");
-          await database.run("DELETE FROM whatsapp_auth_state").catch(() => {});
-          shouldReconnect = true; // MUST reconnect to generate a NEW QR code
-        }
 
         if (shouldReconnect) {
           reconnectTimeout = setTimeout(() => connectToWhatsApp(), 5000);

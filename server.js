@@ -41,7 +41,7 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   res.status(200).json({ filePath: `/uploads/${req.file.filename}` });
 });
 
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 process.on('exit', (code) => {
   console.log(`Process exiting with code ${code}`);

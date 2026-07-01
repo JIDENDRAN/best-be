@@ -46,20 +46,15 @@ export const db = {
     if (isInsert && !sqlToRun.toUpperCase().includes('RETURNING')) {
       sqlToRun += ' RETURNING id';
     }
-    try {
-      const res = await pool.query(sqlToRun, pgParams);
-      let lastID = null;
-      if (isInsert && res.rows[0]) {
-        lastID = res.rows[0].id || null;
-      }
-      return {
-        lastID,
-        changes: res.rowCount
-      };
-    } catch (err) {
-      console.error('db.run error:', err.message, 'SQL:', sqlToRun);
-      throw err;
+    const res = await pool.query(sqlToRun, pgParams);
+    let lastID = null;
+    if (isInsert && res.rows[0]) {
+      lastID = res.rows[0].id || null;
     }
+    return {
+      lastID,
+      changes: res.rowCount
+    };
   },
   
   exec: async (text) => {
