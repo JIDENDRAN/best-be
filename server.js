@@ -62,9 +62,9 @@ initDatabase()
     db = database;
     console.log('SQLite Database loaded and tables initialized.');
     
-    // Boot WhatsApp Bot (Optional, skipped on startup to prevent blocking/crashing)
-    // The admin can start it from the Admin Dashboard -> Settings if needed.
-    // connectToWhatsApp(db);
+    // Boot WhatsApp Bot
+    // The admin can re-authenticate it from the Admin Dashboard -> Settings if needed.
+    connectToWhatsApp(db);
   })
   .catch((err) => {
     console.error('Failed to boot SQLite Database:', err);
