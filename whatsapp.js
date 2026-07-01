@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, proto } from '@whiskeysockets/baileys';
+import makeWASocket, { DisconnectReason, proto, Browsers } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import qrcode from 'qrcode-terminal';
 import { initAuthCreds } from '@whiskeysockets/baileys/lib/Utils/auth-utils.js';
@@ -111,8 +111,10 @@ export async function connectToWhatsApp(db) {
       auth: state,
       printQRInTerminal: false, // We will print it custom with qrcode-terminal
       logger: pino({ level: 'silent' }),
-      browser: ['MaduraiBest', 'Chrome', '1.0.0']
+      browser: Browsers.macOS('Desktop')
     });
+
+    sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;

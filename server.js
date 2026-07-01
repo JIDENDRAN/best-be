@@ -403,6 +403,25 @@ app.post('/api/admin/whatsapp-disconnect', async (req, res) => {
   }
 });
 
+app.post('/api/admin/whatsapp-test', async (req, res) => {
+  try {
+    const admin = await db.get('SELECT * FROM admin_settings LIMIT 1');
+    const targetPhone = admin ? admin.whatsapp : '6382513075';
+    
+    const message = `👋 *Test Message from Madurai Best Tours and Travels* \n\nIf you are seeing this, your WhatsApp Notification Bot is successfully connected and ready to receive live booking alerts! ✅`;
+      
+    const success = await sendWhatsAppNotification(targetPhone, message);
+    if (success) {
+      res.status(200).json({ message: 'Test message sent successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to send test message (Bot might be disconnected)' });
+    }
+  } catch (error) {
+    console.error('Error sending test message:', error);
+    res.status(500).json({ error: 'Error sending test message' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`SQLite Express Backend is active on port ${PORT}`);
