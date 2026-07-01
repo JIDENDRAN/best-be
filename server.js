@@ -5,7 +5,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { initDatabase } from './db.js';
-import { connectToWhatsApp, sendWhatsAppNotification, getWhatsAppStatus } from './whatsapp.js';
+import { connectToWhatsApp, sendWhatsAppNotification, getWhatsAppStatus, disconnectWhatsApp } from './whatsapp.js';
 
 const app = express();
 app.use(cors());
@@ -230,10 +230,10 @@ app.get('/api/packages', async (req, res) => {
 
 app.post('/api/packages', async (req, res) => {
   try {
-    const { name, duration, places, price, image } = req.body;
+    const { name, duration, places, price, image, rating, reviewCount, location } = req.body;
     const result = await db.run(
-      'INSERT INTO packages (name, duration, places, price, image) VALUES (?, ?, ?, ?, ?)',
-      [name, duration, places, price, image || 'meenakshi_bg.png']
+      'INSERT INTO packages (name, duration, places, price, image, rating, "reviewCount", location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, duration, places, price, image || 'meenakshi_bg.png', rating || '5.0', reviewCount || '100+', location || 'Tamil Nadu']
     );
     const newPackage = await db.get('SELECT * FROM packages WHERE id = ?', [result.lastID]);
     res.status(201).json({ message: 'Tour package added successfully', package: newPackage });
@@ -245,10 +245,10 @@ app.post('/api/packages', async (req, res) => {
 
 app.put('/api/packages/:id', async (req, res) => {
   try {
-    const { name, duration, places, price, image } = req.body;
+    const { name, duration, places, price, image, rating, reviewCount, location } = req.body;
     await db.run(
-      'UPDATE packages SET name = ?, duration = ?, places = ?, price = ?, image = ? WHERE id = ?',
-      [name, duration, places, price, image, req.params.id]
+      'UPDATE packages SET name = ?, duration = ?, places = ?, price = ?, image = ?, rating = ?, "reviewCount" = ?, location = ? WHERE id = ?',
+      [name, duration, places, price, image, rating, reviewCount, location, req.params.id]
     );
     const updated = await db.get('SELECT * FROM packages WHERE id = ?', [req.params.id]);
     res.status(200).json({ message: 'Package updated successfully', package: updated });
@@ -390,6 +390,16 @@ app.post('/api/admin/whatsapp-reconnect', async (req, res) => {
   } catch (error) {
     console.error('Error triggering WhatsApp reconnect:', error);
     res.status(500).json({ error: 'Failed to trigger reconnect' });
+  }
+});
+
+app.post('/api/admin/whatsapp-disconnect', async (req, res) => {
+  try {
+    await disconnectWhatsApp();
+    res.status(200).json({ message: 'WhatsApp bot disconnected successfully' });
+  } catch (error) {
+    console.error('Error disconnecting WhatsApp:', error);
+    res.status(500).json({ error: 'Failed to disconnect bot' });
   }
 });
 

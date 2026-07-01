@@ -217,3 +217,18 @@ export function getWhatsAppStatus() {
   return isConnected;
 }
 
+export async function disconnectWhatsApp() {
+  if (sock) {
+    try {
+      await sock.logout();
+    } catch (err) {
+      console.error('Error logging out of WhatsApp:', err);
+    }
+  }
+  if (database) {
+    await database.run("DELETE FROM whatsapp_auth_state").catch(() => {});
+    await database.run("UPDATE admin_settings SET qr_code = NULL").catch(() => {});
+  }
+  isConnected = false;
+  sock = null;
+}
