@@ -44,15 +44,33 @@ export async function useSQLiteAuthState(db) {
       keys: {
         get: async (type, ids) => {
           const data = {};
-          await Promise.all(
-            ids.map(async (id) => {
-              let value = await readData(`${type}-${id}`);
-              if (type === 'app-state-sync-key' && value) {
-                value = proto.Message.AppStateSyncKeyData.fromObject(value);
+          if (ids.length === 0) return data;
+          
+          const fullIds = ids.map(id => `${type}-${id}`);
+          const placeholders = fullIds.map(() => '?').join(',');
+          
+          try {
+            const rows = await database.all(`SELECT id, value FROM whatsapp_auth_state WHERE id IN (${placeholders})`, fullIds);
+            const rowsMap = {};
+            for (const row of rows) {
+              rowsMap[row.id] = row.value;
+            }
+
+            for (const id of ids) {
+              const key = `${type}-${id}`;
+              const rowValue = rowsMap[key];
+              if (rowValue) {
+                let parsed = JSON.parse(rowValue, BufferJSON.reviver);
+                if (type === 'app-state-sync-key' && parsed) {
+                  parsed = proto.Message.AppStateSyncKeyData.fromObject(parsed);
+                }
+                data[id] = parsed;
               }
-              data[id] = value;
-            })
-          );
+            }
+          } catch (error) {
+            console.error('Batch read error:', error);
+          }
+          
           return data;
         },
         set: async (data) => {
