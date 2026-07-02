@@ -194,25 +194,7 @@ export async function connectToWhatsApp(db) {
       }
     });
 
-    // Auto-reply to incoming messages
-    sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
-      
-      const msg = messages[0];
-      // Ignore if it's from ourselves or has no text
-      if (!msg.message || msg.key.fromMe) return;
 
-      const senderJid = msg.key.remoteJid;
-      // Simple generic auto-reply for customers
-      const replyText = "Hello! 👋 Welcome to Madurai Best Tours and Travels.\n\nWe have received your message. Our team will review it and get back to you shortly! You can also book a vehicle directly from our website.";
-      
-      try {
-        await sock.sendMessage(senderJid, { text: replyText });
-        console.log(`[WhatsApp] Sent auto-reply to ${senderJid}`);
-      } catch (err) {
-        console.error('[WhatsApp] Failed to send auto-reply:', err);
-      }
-    });
 
     sock.ev.on('creds.update', saveCreds);
   } catch (err) {

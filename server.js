@@ -422,6 +422,25 @@ app.post('/api/admin/whatsapp-test', async (req, res) => {
   }
 });
 
+app.post('/api/admin/whatsapp-custom-message', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'Phone number and message are required' });
+    }
+    
+    const success = await sendWhatsAppNotification(phone, message);
+    if (success) {
+      res.status(200).json({ message: 'Custom message sent successfully' });
+    } else {
+      res.status(500).json({ error: 'Failed to send custom message. Number might not be on WhatsApp or Bot is disconnected.' });
+    }
+  } catch (error) {
+    console.error('Error sending custom message:', error);
+    res.status(500).json({ error: 'Error sending custom message' });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`SQLite Express Backend is active on port ${PORT}`);
