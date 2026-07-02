@@ -148,8 +148,7 @@ export async function connectToWhatsApp(db) {
     sock = makeWASocket({
       auth: state,
       printQRInTerminal: false, // We will print it custom with qrcode-terminal
-      logger: pino({ level: 'silent' }),
-      browser: Browsers.macOS('Desktop')
+      logger: pino({ level: 'error' })
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -166,7 +165,7 @@ export async function connectToWhatsApp(db) {
         
         // Also save QR to database so frontend can display it in the Admin Dashboard!
         await database.run(
-          "UPDATE admin_settings SET qr_code = ?",
+          "UPDATE admin_settings SET qr_code = ? WHERE id = (SELECT MIN(id) FROM admin_settings)",
           [qr]
         ).catch((err) => {
           console.error('Failed to save QR code in settings:', err);
@@ -236,6 +235,12 @@ export async function sendWhatsAppNotification(toPhone, message) {
       cleanPhone = '91' + cleanPhone;
     }
     const jid = `${cleanPhone}@s.whatsapp.net`;
+
+    const [result] = await sock.onWhatsApp(jid);
+    if (!result || !result.exists) {
+      console.error(`[WhatsApp Error] Number ${cleanPhone} is NOT registered on WhatsApp.`);
+      return false;
+    }
 
     await sock.sendMessage(jid, { text: message });
     console.log(`[WhatsApp Success] Booking notification dispatched to admin JID: ${jid}`);
