@@ -441,6 +441,119 @@ app.post('/api/admin/whatsapp-custom-message', async (req, res) => {
   }
 });
 
+// --- GOOGLE BUSINESS PROFILE REVIEWS PROXY API ---
+const CACHE_FILE = path.join(process.cwd(), 'reviews-cache.json');
+const CACHE_DURATION = 12 * 60 * 60 * 1000; // 12 hours
+
+app.get('/api/google-reviews', async (req, res) => {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const placeId = process.env.GOOGLE_PLACE_ID;
+
+  if (!apiKey || !placeId) {
+    console.warn('Google Places API key or Place ID is not configured.');
+    return res.status(200).json({
+      success: false,
+      message: 'API credentials missing. Falling back to local static reviews.',
+      businessName: 'Madurai Best Tours and Travels',
+      rating: 5.0,
+      userRatingCount: 250,
+      googleReviewUrl: 'https://search.google.com/local/reviews?placeid=ChIJyXG_6UZaADsR0Lq9mO32ZYo',
+      reviews: []
+    });
+  }
+
+  // Helper to read cache from file
+  const readCache = async () => {
+    try {
+      if (fs.existsSync(CACHE_FILE)) {
+        const fileContent = await fs.promises.readFile(CACHE_FILE, 'utf8');
+        return JSON.parse(fileContent);
+      }
+    } catch (err) {
+      console.error('Failed to read reviews cache file:', err);
+    }
+    return null;
+  };
+
+  // Helper to write cache to file
+  const writeCache = async (data) => {
+    try {
+      const cacheData = {
+        timestamp: Date.now(),
+        data
+      };
+      await fs.promises.writeFile(CACHE_FILE, JSON.stringify(cacheData, null, 2), 'utf8');
+    } catch (err) {
+      console.error('Failed to write reviews cache file:', err);
+    }
+  };
+
+  const cached = await readCache();
+  if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
+    console.log('Serving Google Reviews from cache.');
+    return res.status(200).json(cached.data);
+  }
+
+  try {
+    console.log('Fetching fresh reviews from Google Places API (New)...');
+    const response = await fetch(`https://places.googleapis.com/v1/places/${placeId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'displayName,rating,userRatingCount,reviews'
+      }
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Google Places API responded with status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+
+    const formattedData = {
+      success: true,
+      businessName: data.displayName?.text || 'Madurai Best Tours and Travels',
+      rating: data.rating || 5.0,
+      userRatingCount: data.userRatingCount || 0,
+      googleReviewUrl: `https://search.google.com/local/reviews?placeid=${placeId}`,
+      reviews: (data.reviews || []).map(r => ({
+        authorName: r.authorAttribution?.displayName || 'Anonymous User',
+        authorPhoto: r.authorAttribution?.photoUri || null,
+        rating: r.rating || 5,
+        text: r.text?.text || r.originalText?.text || '',
+        relativeTime: r.relativePublishTimeDescription || '',
+        publishTime: r.publishTime || '',
+        languageCode: r.text?.languageCode || r.originalText?.languageCode || 'en'
+      }))
+    };
+
+    await writeCache(formattedData);
+    return res.status(200).json(formattedData);
+  } catch (error) {
+    console.error('Failed to fetch reviews from Google Places API:', error.message);
+    
+    // Fallback to expired cache if available
+    if (cached) {
+      console.warn('Google Places API call failed. Serving expired reviews cache as fallback.');
+      return res.status(200).json(cached.data);
+    }
+
+    // Ultimate fallback if no cache at all
+    return res.status(200).json({
+      success: false,
+      message: 'Failed to retrieve reviews from Google API. Falling back to local static reviews.',
+      businessName: 'Madurai Best Tours and Travels',
+      rating: 5.0,
+      userRatingCount: 250,
+      googleReviewUrl: `https://search.google.com/local/reviews?placeid=${placeId}`,
+      reviews: []
+    });
+  }
+});
+
+
 
 app.listen(PORT, () => {
   console.log(`SQLite Express Backend is active on port ${PORT}`);
