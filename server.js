@@ -4,41 +4,64 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { initDatabase } from './db.js';
+import { initDatabase, db } from './db.js';
 import { connectToWhatsApp, sendWhatsAppNotification, getWhatsAppStatus, disconnectWhatsApp } from './whatsapp.js';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Ensure uploads directory exists
 const uploadsDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
 
-// Serve uploaded files statically
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Configure Multer storage to keep file in memory buffer for Base64 conversion
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
-// Configure Multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+// Image Upload API - converts uploaded image directly to a Base64 Data URL string
+app.post('/api/upload', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const base64Data = `data:${mimeType};base64,${req.file.buffer.toString('base64')}`;
+
+    // Return the Base64 Data URL string which gets saved directly into Neon DB (in cars/packages table)
+    res.status(200).json({ filePath: base64Data });
+  } catch (error) {
+    console.error('Error converting image to Base64:', error);
+    res.status(500).json({ error: 'Failed to process image to Base64' });
   }
 });
-const upload = multer({ storage: storage });
 
-// Image Upload API
-app.post('/api/upload', upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+// Serve images directly from Neon DB (with fallback to local directory)
+app.get('/uploads/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const result = await db.query('SELECT mime_type, data FROM uploaded_files WHERE filename = $1', [filename]);
+    
+    if (result.rows && result.rows.length > 0) {
+      const file = result.rows[0];
+      res.setHeader('Content-Type', file.mime_type || 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      return res.send(file.data);
+    }
+
+    // Fallback: check local disk if file was saved prior to migration
+    const localPath = path.join(uploadsDir, filename);
+    if (fs.existsSync(localPath)) {
+      return res.sendFile(localPath);
+    }
+
+    return res.status(404).send('Image not found');
+  } catch (error) {
+    console.error('Error serving image from database:', error);
+    res.status(500).send('Error retrieving image');
   }
-  // Return the relative URL string that will be stored in the database
-  res.status(200).json({ filePath: `/uploads/${req.file.filename}` });
 });
 
 const PORT = process.env.PORT || 5000;
@@ -56,18 +79,16 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 // Initialize Database & WhatsApp Bot
-let db = null;
 initDatabase()
-  .then((database) => {
-    db = database;
-    console.log('SQLite Database loaded and tables initialized.');
+  .then(() => {
+    console.log('Neon Database loaded and tables initialized.');
     
     // Boot WhatsApp Bot
     // The admin can re-authenticate it from the Admin Dashboard -> Settings if needed.
     connectToWhatsApp(db);
   })
   .catch((err) => {
-    console.error('Failed to boot SQLite Database:', err);
+    console.error('Failed to boot Neon Database:', err);
   });
 
 // --- HELPER FUNCTION FOR WHATSAPP ALERT DISPATCH ---

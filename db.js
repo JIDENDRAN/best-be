@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import pg from 'pg';
 const { Pool } = pg;
 
@@ -127,7 +129,45 @@ export async function initDatabase() {
       message TEXT NOT NULL,
       "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS uploaded_files (
+      id SERIAL PRIMARY KEY,
+      filename TEXT UNIQUE NOT NULL,
+      mime_type TEXT NOT NULL,
+      data BYTEA NOT NULL,
+      "createdAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
+
+  // Migrate existing local upload files to Neon DB if not present
+  try {
+    const uploadsDir = path.join(process.cwd(), 'uploads');
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      for (const file of files) {
+        const filePath = path.join(uploadsDir, file);
+        if (fs.statSync(filePath).isFile()) {
+          const existing = await pool.query('SELECT id FROM uploaded_files WHERE filename = $1', [file]);
+          if (existing.rows.length === 0) {
+            const fileBuffer = fs.readFileSync(filePath);
+            const ext = path.extname(file).toLowerCase();
+            let mimeType = 'image/jpeg';
+            if (ext === '.png') mimeType = 'image/png';
+            else if (ext === '.webp') mimeType = 'image/webp';
+            else if (ext === '.svg') mimeType = 'image/svg+xml';
+            
+            await pool.query(
+              'INSERT INTO uploaded_files (filename, mime_type, data) VALUES ($1, $2, $3)',
+              [file, mimeType, fileBuffer]
+            );
+            console.log(`Migrated local image to Neon DB: ${file}`);
+          }
+        }
+      }
+    }
+  } catch (migErr) {
+    console.error('Warning: Error during local images migration to Neon DB:', migErr);
+  }
 
   // Seed default admin settings
   await pool.query("UPDATE admin_settings SET name = 'admin' WHERE name = 'Superadmin'");
